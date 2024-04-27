@@ -1,0 +1,42 @@
+version: '3'
+
+services:
+  neo4j-db:
+    image: neo4j:4.4.3
+    container_name: neo4j-db
+    ports:
+      - 7474:7474
+      - 7687:7687
+    volumes:
+      - $HOME/neo4j/data:/data
+      - $HOME/neo4j/logs:/logs
+      - $HOME/neo4j/import:/import
+      - $HOME/neo4j/plugins:/plugins
+    environment:
+      NEO4J_AUTH: "neo4j/test"
+      dbms_connector_bolt_listen__address: neo4j-db:7687
+      dbms_connector_bolt_advertised__address: neo4j-db:7687
+    healthcheck:
+      test: cypher-shell --username neo4j --password test 'MATCH (n) RETURN COUNT(n);' # Checks if neo4j server is up and running
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  app:
+    image: 'ddjurdjevic/reserve-your-spot:latest'
+    ports:
+      - 8081:8081
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reserve-your-spot
+    depends_on:
+      neo4j-db:
+        condition: service_healthy # Wait for neo4j to be ready
+    links:
+      - neo4j-db
+    environment:
+      SPRING_NEO4J_URI: bolt://neo4j-db:7687
+      SPRING_NEO4J_USER: neo4j
+      SPRING_NEO4J_PASSWORD: test
